@@ -1,18 +1,18 @@
-const canvas = document.getElementById("screen");
-const ctx = canvas.getContext("2d");
-const WIDTH = canvas.width;
-const HEIGHT = canvas.height;
-const SIZE = 20;
+let canvas, ctx, scoreEl;
+const WIDTH = 800;
+const HEIGHT = 800;
+const SIZE = 30;
 const PLAY_SIZE = SIZE - 2;
 const unit = WIDTH / SIZE;
 const step = 0.05;
+const TTL = 200; // in ms
+const DELAY = 5; // in ms
 const Direction = {
   Up: "ArrowUp",
   Down: "ArrowDown",
   Left: "ArrowLeft",
   Right: "ArrowRight",
 };
-const DELAY = 10;
 
 // state
 // snake coord array
@@ -22,14 +22,21 @@ let growing = 0;
 // fruit coordinate
 let f = {};
 // input state
-let currDir, cmd;
+let currDir;
 // game state
 let gameOver = false;
+// score
+let score = 0;
+// input q
+let q = [];
 
 // keypress listener
 document.onkeydown = (e) => {
   if (Object.values(Direction).includes(e.key)) {
-    cmd = e.key;
+    var last = q[q.length - 1];
+    if (last != e.key && last != e.key && !isConflict(e.key, last)) {
+      q.push({ cmd: e.key, timestamp: Date.now() });
+    }
   }
 };
 
@@ -37,10 +44,9 @@ const roundOff = (num) => {
   return Math.round(num * 1000) / 1000;
 };
 
-drawAt = (x, y, type) => {
+const drawAt = (x, y, type) => {
   const draw = (x, y, color) => {
     ctx.fillStyle = color;
-    console.log(roundOff(x));
     ctx.fillRect(roundOff(x) * unit, roundOff(y) * unit, unit, unit);
   };
 
@@ -54,13 +60,33 @@ drawAt = (x, y, type) => {
   }
 };
 
-getRandCoord = () => {
+const getRandCoord = () => {
   const x = Math.floor(Math.random() * PLAY_SIZE) + 1;
   const y = Math.floor(Math.random() * PLAY_SIZE) + 1;
   return { x, y };
 };
 
-init = () => {
+const init = () => {
+  scoreEl = document.getElementById("score");
+  if (!scoreEl) {
+    scoreEl = document.createElement("p");
+    scoreEl.setAttribute("id", "score");
+    scoreEl.innerText = "Score: 0";
+    scoreEl.setAttribute(
+      "style",
+      "font-family:verdana; font-size: 2rem; color: blue;"
+    );
+    document.body.appendChild(scoreEl);
+  }
+  canvas = document.getElementById("screen");
+  if (!canvas) {
+    canvas = document.createElement("canvas");
+    canvas.setAttribute("id", "screen");
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    document.body.appendChild(canvas);
+  }
+  ctx = canvas.getContext("2d");
   // draw background
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -69,21 +95,27 @@ init = () => {
   const drawHorBricks = (x, y) => {
     for (let i = 0; i < SIZE; i++) {
       ctx.fillStyle = "white";
-      ctx.fillRect(i * unit + 5, y, unit - 10, unit - 10);
+      ctx.fillRect(i * unit, y, unit, unit);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = "black";
+      ctx.strokeRect(i * unit, y, unit, unit);
     }
   };
 
   const drawVertBricks = (x, y) => {
     for (let i = 1; i < SIZE - 1; i++) {
       ctx.fillStyle = "white";
-      ctx.fillRect(x, i * unit + 5, unit - 10, unit - 10);
+      ctx.fillRect(x, i * unit, unit, unit);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = "black";
+      ctx.strokeRect(x, i * unit, unit, unit);
     }
   };
 
-  drawHorBricks(5, 5);
-  drawHorBricks(5, HEIGHT - unit + 5);
-  drawVertBricks(5, unit + 5);
-  drawVertBricks(WIDTH - unit + 5, unit + 5);
+  drawHorBricks(0, 0);
+  drawHorBricks(0, HEIGHT - unit);
+  drawVertBricks(0, unit);
+  drawVertBricks(WIDTH - unit, unit);
 
   f = getRandCoord();
   let head = getRandCoord();
@@ -93,10 +125,10 @@ init = () => {
   s.push(head);
 };
 
-render = () => {
-  s.forEach(({ x, y }) => {
-    drawAt(x, y, "snake");
-  });
+const render = () => {
+  for (let i = s.length - 1; i >= 0; i--) {
+    drawAt(s[i].x, s[i].y, "snake");
+  }
 
   drawAt(f.x, f.y, "fruit");
 };
@@ -116,52 +148,43 @@ const isConflict = (cmd, lastCmd) => {
   return cmd == Conflict[lastCmd];
 };
 
-const dirChangeAllowed = () => {
+const inSquare = () => {
   const head = s[0];
-  return (
-    Number.isInteger(roundOff(head.x)) && Number.isInteger(roundOff(head.y))
-  );
+  return Number.isInteger(head.x) && Number.isInteger(head.y);
 };
 
-const logic = () => {
-  if (!cmd) {
-    return;
-  }
+const isCollided = (a, b) => {
+  const delX = Math.abs(a.x - b.x);
+  const delY = Math.abs(a.y - b.y);
+  return delX < 1 && delY < 1;
+};
 
-  let dir;
-  if (isConflict(cmd, currDir) || !dirChangeAllowed()) {
-    dir = currDir;
-  } else {
-    dir = cmd;
-    currDir = cmd;
-  }
-
+const moveAndCheckCollision = (dir) => {
   const head = s[0];
   switch (dir) {
     case Direction.Up:
-      s.unshift({ x: head.x, y: head.y - step });
+      s.unshift({ x: head.x, y: roundOff(head.y - step) });
       break;
     case Direction.Down:
-      s.unshift({ x: head.x, y: head.y + step });
+      s.unshift({ x: head.x, y: roundOff(head.y + step) });
       break;
     case Direction.Left:
-      s.unshift({ x: head.x - step, y: head.y });
+      s.unshift({ x: roundOff(head.x - step), y: head.y });
       break;
     case Direction.Right:
-      s.unshift({ x: head.x + step, y: head.y });
+      s.unshift({ x: roundOff(head.x + step), y: head.y });
       break;
   }
 
   const updatedHead = s[0];
   // check collide with fruit
-  if (
-    (roundOff(updatedHead.x) == roundOff(f.x) &&
-      roundOff(updatedHead.y) == roundOff(f.y)) ||
-    growing
-  ) {
+  if (isCollided(updatedHead, f) || growing) {
+    f = {};
     if (growing == roundOff(1 / step)) {
       f = getRandCoord();
       growing = 0;
+      score++;
+      scoreEl.innerText = `Score: ${score}`;
     } else {
       growing += 1;
     }
@@ -171,10 +194,10 @@ const logic = () => {
 
   // check collide with wall
   if (
-    roundOff(updatedHead.x) < 1 ||
-    roundOff(updatedHead.x) > PLAY_SIZE ||
-    roundOff(updatedHead.y) < 1 ||
-    roundOff(updatedHead.y) > PLAY_SIZE
+    updatedHead.x < 1 ||
+    updatedHead.x > PLAY_SIZE ||
+    updatedHead.y < 1 ||
+    updatedHead.y > PLAY_SIZE
   ) {
     gameOver = true;
   }
@@ -187,14 +210,60 @@ const logic = () => {
   }
 };
 
-const startGame = () => {
-  init();
+const isExpired = (timestamp) => {
+  if (Date.now() > timestamp + TTL) {
+    console.log("expired");
+    return true;
+  }
+};
 
+const logic = () => {
+  // starting condition
+  if (q.length == 0 && !currDir) {
+    return;
+  }
+
+  let dir;
+  if (!inSquare()) {
+    dir = currDir;
+    moveAndCheckCollision(dir);
+    return;
+  }
+
+  // keep polling for non-expired input
+  var input = q.shift();
+  while (input && (isExpired(input.timestamp) || input.cmd == currDir)) {
+    input = q.shift();
+  }
+
+  if (!input) {
+    dir = currDir;
+    moveAndCheckCollision(dir);
+    return;
+  }
+
+  if (isConflict(input.cmd, currDir)) {
+    dir = currDir;
+    moveAndCheckCollision(dir);
+    return;
+  }
+
+  dir = input.cmd;
+  currDir = dir;
+  console.log("switch to " + currDir);
+  moveAndCheckCollision(dir);
+};
+
+const gameLoop = () => {
   const intervalId = setInterval(() => {
-    // console.log(s[0].x, s[0].y);
     if (!gameOver) {
       clear();
+      console.log("dir " + currDir);
+      console.log(q.map((i) => i.cmd).join(" "));
       logic();
+      if (gameOver) {
+        return;
+      }
       render();
       return;
     }
@@ -209,9 +278,11 @@ const restart = () => {
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   gameOver = false;
   s = [];
-  cmd = undefined;
+  currDir = undefined;
+  q = [];
+  score = 0;
 
-  startGame();
+  main();
 };
 
 const createBtn = () => {
@@ -219,7 +290,7 @@ const createBtn = () => {
   btn.innerHTML = "Play Again";
   btn.setAttribute("id", "restart-btn");
   btn.onclick = restart;
-  document.getElementById("main").appendChild(btn);
+  document.body.appendChild(btn);
 };
 
 const endGame = (id) => {
@@ -236,7 +307,8 @@ const endGame = (id) => {
 };
 
 const main = () => {
-  startGame();
+  init();
+  gameLoop();
 };
 
 main();
