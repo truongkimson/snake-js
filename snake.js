@@ -33,6 +33,7 @@ let q = [];
 // keypress listener
 document.onkeydown = (e) => {
   if (Object.values(Direction).includes(e.key)) {
+    e.preventDefault();
     var last = q[q.length - 1];
     if (last != e.key && last != e.key && !isConflict(e.key, last)) {
       q.push({ cmd: e.key, timestamp: Date.now() });
@@ -212,7 +213,6 @@ const moveAndCheckCollision = (dir) => {
 
 const isExpired = (timestamp) => {
   if (Date.now() > timestamp + TTL) {
-    console.log("expired");
     return true;
   }
 };
@@ -250,7 +250,6 @@ const logic = () => {
 
   dir = input.cmd;
   currDir = dir;
-  console.log("switch to " + currDir);
   moveAndCheckCollision(dir);
 };
 
@@ -258,8 +257,6 @@ const gameLoop = () => {
   const intervalId = setInterval(() => {
     if (!gameOver) {
       clear();
-      console.log("dir " + currDir);
-      console.log(q.map((i) => i.cmd).join(" "));
       logic();
       if (gameOver) {
         return;
